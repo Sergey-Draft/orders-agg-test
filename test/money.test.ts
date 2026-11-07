@@ -10,6 +10,8 @@ describe("parseRub", () => {
 
   it("отклоняет мусор и отрицательные суммы", () => {
     expect(() => parseRub("abc")).toThrow();
+    expect(() => parseRub("")).toThrow();
+    expect(() => parseRub("  ")).toThrow();
     expect(() => parseRub(null)).toThrow();
     expect(() => parseRub(-1)).toThrow();
   });
