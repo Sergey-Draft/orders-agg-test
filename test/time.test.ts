@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { dateAtOffset, datesBetween, isCalendarDate, parseUtc, tzOffsetMinutes } from "../src/utils/time.js";
+import { dateAtOffset, dateInZone, datesBetween, isCalendarDate, parseUtc, tzOffsetMinutes } from "../src/utils/time.js";
+
+describe("dateInZone — смещение на момент события, а не на «сейчас»", () => {
+  it("Europe/Berlin вокруг перехода на летнее время 29.03.2026 (01:00Z)", () => {
+    expect(tzOffsetMinutes("Europe/Berlin", new Date("2026-03-29T00:59:59Z"))).toBe(60);
+    expect(tzOffsetMinutes("Europe/Berlin", new Date("2026-03-29T01:00:00Z"))).toBe(120);
+    expect(dateInZone(new Date("2026-03-27T23:30:00Z"), "Europe/Berlin")).toBe("2026-03-28");
+    expect(dateInZone(new Date("2026-03-29T22:30:00Z"), "Europe/Berlin")).toBe("2026-03-30");
+    expect(dateInZone(new Date("2026-03-29T21:59:59Z"), "Europe/Berlin")).toBe("2026-03-29");
+  });
+
+  it("America/New_York, переход 08.03.2026", () => {
+    expect(dateInZone(new Date("2026-03-09T04:30:00Z"), "America/New_York")).toBe("2026-03-09");
+    expect(dateInZone(new Date("2026-03-08T04:30:00Z"), "America/New_York")).toBe("2026-03-07");
+  });
+});
 
 describe("parseUtc", () => {
   it("строка с Z", () => {
