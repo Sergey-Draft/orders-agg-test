@@ -35,8 +35,8 @@ export class OrdersRepository {
     return rows[0] ? fromRow(rows[0]) : null;
   }
 
-  async save(o: Order): Promise<void> {
-    await this.db.query(
+  async saveIfNewer(o: Order): Promise<"created" | "updated" | "stale"> {
+    const { rows } = await this.db.query<{ inserted: boolean }>(
       `INSERT INTO orders (id, customer_id, amount_kop, status, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (id) DO UPDATE SET
@@ -44,9 +44,13 @@ export class OrdersRepository {
          amount_kop  = excluded.amount_kop,
          status      = excluded.status,
          created_at  = excluded.created_at,
-         updated_at  = excluded.updated_at`,
+         updated_at  = excluded.updated_at
+       WHERE orders.updated_at < excluded.updated_at
+       RETURNING (xmax = 0) AS inserted`,
       [o.id, o.customerId, o.amountKop, o.status, o.createdAt, o.updatedAt],
     );
+    if (rows.length === 0) return "stale";
+    return rows[0].inserted ? "created" : "updated";
   }
 
   /** Оплаченные заказы клиента, созданные в [from, to). */

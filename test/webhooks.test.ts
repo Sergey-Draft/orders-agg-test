@@ -35,4 +35,23 @@ describe("POST /webhooks/order", () => {
     const res = await postWebhook(ctx.app, { id: "x" });
     expect(res.statusCode).toBe(400);
   });
+
+  it("одновременные события: остаётся самая свежая версия", async () => {
+    const versions = ["2026-02-10T13:00:00Z", "2026-02-10T14:00:00Z", "2026-02-10T15:00:00Z"];
+    const orders = Array.from({ length: 20 }, () => apiOrder({ status: "pending" }));
+    await Promise.all(orders.map((o) => postWebhook(ctx.app, o)));
+
+    await Promise.all(
+      orders.flatMap((o) =>
+        [...versions].reverse().map((updatedAt, i) => postWebhook(ctx.app, { ...o, status: i === 0 ? "refunded" : "paid", updatedAt })),
+      ),
+    );
+
+    const { rows } = await ctx.db.query(`SELECT status, updated_at FROM orders WHERE id = ANY($1)`, [orders.map((o) => o.id)]);
+    expect(rows).toHaveLength(orders.length);
+    for (const r of rows) {
+      expect(r.status).toBe("refunded");
+      expect(r.updated_at.toISOString()).toBe("2026-02-10T15:00:00.000Z");
+    }
+  });
 });
