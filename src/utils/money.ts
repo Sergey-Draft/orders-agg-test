@@ -11,6 +11,14 @@ export function parseRub(raw: unknown): number {
   return value;
 }
 
+export function parsePercent(raw: unknown): number {
+  const value = typeof raw === "string" && raw.trim() !== "" ? Number(raw.trim()) : raw;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 100) {
+    throw new Error(`invalid discountPercent: ${JSON.stringify(raw)}`);
+  }
+  return value;
+}
+
 /** Рубли → копейки. Доли копейки отбрасываются: деньги клиенту не досчитываем. */
 export function toKop(rub: number): number {
   const [int, frac] = rub.toFixed(6).split(".");

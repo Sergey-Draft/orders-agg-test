@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ValidationError } from "../errors.js";
 import type { Order, OrdersRepository } from "../repositories/orders.js";
-import { parseRub, toKop } from "../utils/money.js";
+import { parsePercent, parseRub, toKop } from "../utils/money.js";
 import { parseUtc } from "../utils/time.js";
 
 /** Заказ в формате внешнего API (поля, которые нам нужны; остальные игнорируем). */
@@ -9,12 +9,25 @@ const ExternalOrder = z.object({
   id: z.string().min(1),
   customerId: z.string().min(1),
   amount: z.union([z.number(), z.string()]),
+  discountPercent: z.union([z.number(), z.string()]).nullish(),
+  amountPaid: z.union([z.number(), z.string()]).nullish(),
   status: z.enum(["pending", "paid", "refunded"]),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
 
 export type ApplyResult = "created" | "updated" | "stale";
+
+function paidKop(amountKop: number, discountPercent: unknown, amountPaid: unknown): number {
+  const discount = discountPercent == null ? 0 : parsePercent(discountPercent);
+  if (amountPaid == null) {
+    if (discount !== 0) throw new Error("amountPaid is required when discountPercent is set");
+    return amountKop;
+  }
+  const paid = toKop(parseRub(amountPaid));
+  if (paid > amountKop) throw new Error(`amountPaid exceeds amount: ${JSON.stringify(amountPaid)}`);
+  return paid;
+}
 
 export class OrdersService {
   constructor(private readonly orders: OrdersRepository) {}
@@ -24,10 +37,12 @@ export class OrdersService {
     if (!parsed.success) throw new ValidationError(`invalid order: ${parsed.error.issues.map((i) => i.path.join(".")).join(", ")}`);
     const o = parsed.data;
     try {
+      const amountKop = toKop(parseRub(o.amount));
       return {
         id: o.id,
         customerId: o.customerId,
-        amountKop: toKop(parseRub(o.amount)),
+        amountKop,
+        amountPaidKop: paidKop(amountKop, o.discountPercent, o.amountPaid),
         status: o.status,
         createdAt: parseUtc(o.createdAt),
         updatedAt: parseUtc(o.updatedAt),

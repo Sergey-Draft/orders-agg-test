@@ -36,6 +36,20 @@ describe("POST /webhooks/order", () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it("невалидная скидка — 400", async () => {
+    const cases = [
+      { amount: 1000, discountPercent: 10 },
+      { amount: 1000, discountPercent: 10, amountPaid: 1000.01 },
+      { amount: 1000, discountPercent: 150, amountPaid: 0 },
+      { amount: 1000, discountPercent: "", amountPaid: 1000 },
+      { amount: 1000, discountPercent: 10, amountPaid: "abc" },
+    ];
+    for (const over of cases) {
+      const res = await postWebhook(ctx.app, apiOrder(over));
+      expect(res.statusCode, JSON.stringify(over)).toBe(400);
+    }
+  });
+
   it("одновременные события: остаётся самая свежая версия", async () => {
     const versions = ["2026-02-10T13:00:00Z", "2026-02-10T14:00:00Z", "2026-02-10T15:00:00Z"];
     const orders = Array.from({ length: 20 }, () => apiOrder({ status: "pending" }));

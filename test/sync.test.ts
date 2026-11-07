@@ -42,4 +42,33 @@ describe("POST /sync", () => {
     expect(Number(rows[0].amount_kop)).toBe(250000);
     expect(rows[0].created_at.toISOString()).toBe("2026-02-10T21:30:00.000Z");
   });
+
+  it("сохраняет оплаченную сумму; без полей скидки она равна сумме заказа", async () => {
+    const discounted = apiOrder({ amount: 1000, discountPercent: "15", amountPaid: 850 });
+    const plain = apiOrder({ amount: 1000 });
+    ctx.api.pages.set(null, { items: [discounted, plain], nextCursor: null });
+    await ctx.app.inject({ method: "POST", url: "/sync" });
+    const { rows } = await ctx.db.query(`SELECT id, amount_paid_kop FROM orders ORDER BY id`);
+    expect(rows.map((r) => [r.id, Number(r.amount_paid_kop)])).toEqual([
+      [discounted.id, 85000],
+      [plain.id, 100000],
+    ]);
+  });
+
+  it("дозаполняет скидку у заказов, сохранённых до её появления", async () => {
+    const o = apiOrder({ amount: 1000, discountPercent: 15, amountPaid: 850 });
+    await ctx.db.query(
+      `INSERT INTO orders (id, customer_id, amount_kop, status, created_at, updated_at) VALUES ($1, $2, 100000, 'paid', $3, $4)`,
+      [o.id, o.customerId, o.createdAt, o.updatedAt],
+    );
+    ctx.api.pages.set(null, { items: [o], nextCursor: null });
+
+    const res = await ctx.app.inject({ method: "POST", url: "/sync" });
+    expect(res.json()).toMatchObject({ applied: 1, stale: 0 });
+    const { rows } = await ctx.db.query(`SELECT amount_paid_kop FROM orders WHERE id = $1`, [o.id]);
+    expect(Number(rows[0].amount_paid_kop)).toBe(85000);
+
+    const again = await ctx.app.inject({ method: "POST", url: "/sync" });
+    expect(again.json()).toMatchObject({ applied: 0, stale: 1 });
+  });
 });

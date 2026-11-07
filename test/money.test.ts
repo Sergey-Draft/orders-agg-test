@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fromKop, parseRub, toKop } from "../src/utils/money.js";
+import { fromKop, parsePercent, parseRub, toKop } from "../src/utils/money.js";
 
 describe("parseRub", () => {
   it("принимает число и строку с числом", () => {
@@ -12,6 +12,22 @@ describe("parseRub", () => {
     expect(() => parseRub("abc")).toThrow();
     expect(() => parseRub(null)).toThrow();
     expect(() => parseRub(-1)).toThrow();
+  });
+});
+
+describe("parsePercent", () => {
+  it("принимает число и строку с числом от 0 до 100", () => {
+    expect(parsePercent(0)).toBe(0);
+    expect(parsePercent("13")).toBe(13);
+    expect(parsePercent(16.5)).toBe(16.5);
+    expect(parsePercent(100)).toBe(100);
+  });
+
+  it("отклоняет мусор и значения вне диапазона", () => {
+    expect(() => parsePercent("")).toThrow();
+    expect(() => parsePercent("abc")).toThrow();
+    expect(() => parsePercent(-1)).toThrow();
+    expect(() => parsePercent(101)).toThrow();
   });
 });
 
